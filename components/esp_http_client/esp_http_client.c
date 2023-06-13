@@ -1097,7 +1097,10 @@ static int http_client_prepare_first_line(esp_http_client_handle_t client, int w
         http_header_set_format(client->request->headers, "Content-Length", "%d", write_len);
     } else {
         esp_http_client_set_header(client, "Transfer-Encoding", "chunked");
-        esp_http_client_set_method(client, HTTP_METHOD_POST);
+
+        if (!client->connection_info.method) {
+            esp_http_client_set_method(client, HTTP_METHOD_POST);
+        }
     }
 
     const char *method = HTTP_METHOD_MAPPING[client->connection_info.method];
@@ -1189,6 +1192,14 @@ static esp_err_t esp_http_client_request_send(esp_http_client_handle_t client, i
     http_dispatch_event(client, HTTP_EVENT_HEADERS_SENT, NULL, 0);
     client->state = HTTP_STATE_REQ_COMPLETE_HEADER;
     return ESP_OK;
+}
+
+int esp_http_client_get_errno(esp_http_client_handle_t client)
+{
+    if (client && client->transport) {
+        return esp_transport_get_errno(client->transport);
+    }
+    return ESP_FAIL;
 }
 
 static esp_err_t esp_http_client_send_post_data(esp_http_client_handle_t client)
