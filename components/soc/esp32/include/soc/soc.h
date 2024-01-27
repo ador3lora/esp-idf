@@ -246,7 +246,8 @@
 #define SOC_CACHE_APP_LOW       0x40078000
 #define SOC_CACHE_APP_HIGH      0x40080000
 #define SOC_IRAM_LOW            0x40080000
-#define SOC_IRAM_HIGH           0x400A0000
+//#define SOC_IRAM_HIGH           0x400A0000
+#define SOC_IRAM_HIGH           0x400B0000
 #define SOC_RTC_IRAM_LOW        0x400C0000
 #define SOC_RTC_IRAM_HIGH       0x400C2000
 #define SOC_RTC_DRAM_LOW        0x3FF80000
@@ -257,7 +258,8 @@
 #define SOC_EXTRAM_DATA_HIGH    0x3FC00000
 
 //First and last words of the D/IRAM region, for both the DRAM address as well as the IRAM alias.
-#define SOC_DIRAM_IRAM_LOW    0x400A0000
+//#define SOC_DIRAM_IRAM_LOW    0x400A0000
+#define SOC_DIRAM_IRAM_LOW    0x400B0000
 #define SOC_DIRAM_IRAM_HIGH   0x400C0000
 #define SOC_DIRAM_DRAM_LOW    0x3FFE0000
 #define SOC_DIRAM_DRAM_HIGH   0x40000000
