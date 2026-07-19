@@ -540,8 +540,18 @@ static void s_i2c_send_commands(i2c_master_bus_handle_t i2c_master, TickType_t t
             // For i2c nack detected, the i2c transaction not finish.
             // start->address->nack->stop
             // So wait the whole transaction finishes, then quit the function.
-            while (i2c_ll_is_bus_busy(hal->dev)) {
-                __asm__ __volatile__("nop");
+            // NOTE(raccoon): bounded wait. A wedged FSM can keep the busy
+            // bit set forever (upstream IDFGH-16572 / esp-idf #17690); the
+            // original unbounded nop-spin then pins the calling task on its
+            // core until the task WDT fires. Poll up to ~10 ms; on expiry
+            // flag TIMEOUT so the next transaction start performs
+            // s_i2c_hw_fsm_reset and the bus recovers.
+            uint32_t busy_poll = 0;
+            while (i2c_ll_is_bus_busy(hal->dev) && (busy_poll++ < 2000)) {
+                esp_rom_delay_us(5);
+            }
+            if (i2c_ll_is_bus_busy(hal->dev)) {
+                atomic_store(&i2c_master->status, I2C_STATUS_TIMEOUT);
             }
         }
         s_i2c_err_log_print(event, i2c_master->bypass_nack_log);
