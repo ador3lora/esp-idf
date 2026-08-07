@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -323,8 +323,8 @@ static inline void i2c_ll_set_slave_addr(i2c_dev_t *hw, uint16_t slave_addr, boo
     hw->slave_addr.en_10bit = addr_10bit_en;
     if (addr_10bit_en) {
         uint16_t addr_14_7 = (slave_addr & 0xff) << 7;
-        uint8_t addr_6_0 = ((slave_addr & 0x300) >> 8) || 0x78;
-        hw->slave_addr.addr = addr_14_7 || addr_6_0;
+        uint8_t addr_6_0 = ((slave_addr & 0x300) >> 8) | 0x78;
+        hw->slave_addr.addr = addr_14_7 | addr_6_0;
     } else {
         hw->slave_addr.addr = slave_addr;
     }
@@ -573,7 +573,9 @@ __attribute__((always_inline))
 static inline void i2c_ll_read_rxfifo(i2c_dev_t *hw, uint8_t *ptr, uint8_t len)
 {
     for(int i = 0; i < len; i++) {
-        ptr[i] = HAL_FORCE_READ_U32_REG_FIELD(hw->fifo_data, data);
+        // Known issue that hardware read fifo will cause data lose, (fifo pointer jump over a random address)
+        // use `DPORT_REG_READ` can avoid this issue.
+        ptr[i] = DPORT_REG_READ((uint32_t)&hw->fifo_data);
     }
 }
 
@@ -651,6 +653,20 @@ static inline bool i2c_ll_master_is_bus_clear_done(i2c_dev_t *hw)
 }
 
 /**
+ * @brief Set the ACK level that the I2C master must send when the Rx FIFO count has reached the threshold value.
+ *        ack_level: 1 (NACK)
+ *        ack_level: 0 (ACK)
+ *
+ * @param  hw Beginning address of the peripheral registers
+ *
+ * @return None
+ */
+static inline void i2c_ll_master_rx_full_ack_level(i2c_dev_t *hw, int ack_level)
+{
+    // Not supported on esp32
+}
+
+/**
  * @brief Set I2C source clock
  *
  * @param  hw Beginning address of the peripheral registers
@@ -676,37 +692,37 @@ static inline void i2c_ll_enable_controller_clock(i2c_dev_t *hw, bool en)
 }
 
 /**
- * @brief  Init I2C master
+ * @brief Set the I2C bus mode (Master or Slave)
  *
- * @param  hw Beginning address of the peripheral registers
- *
- * @return None
+ * @param hw Pointer to the I2C hardware register structure.
+ * @param mode The desired I2C bus mode (Master or Slave).
  */
-static inline void i2c_ll_master_init(i2c_dev_t *hw)
+static inline void i2c_ll_set_mode(i2c_dev_t *hw, i2c_bus_mode_t mode)
 {
-    typeof(hw->ctr) ctrl_reg;
-    ctrl_reg.val = 0;
-    ctrl_reg.ms_mode = 1;
-    ctrl_reg.sda_force_out = 1;
-    ctrl_reg.scl_force_out = 1;
-    hw->ctr.val = ctrl_reg.val;
+    hw->ctr.ms_mode = (mode == I2C_BUS_MODE_MASTER) ? 1 : 0;
 }
 
 /**
- * @brief  Init I2C slave
+ * @brief Enable or disable open-drain mode for I2C pins
  *
- * @param  hw Beginning address of the peripheral registers
- *
- * @return None
+ * @param hw Pointer to the I2C hardware register structure.
+ * @param enable_od Boolean flag to enable or disable open-drain mode:
  */
-static inline void i2c_ll_slave_init(i2c_dev_t *hw)
+static inline void i2c_ll_enable_pins_open_drain(i2c_dev_t *hw, bool enable_od)
 {
-    typeof(hw->ctr) ctrl_reg;
-    ctrl_reg.val = 0;
-    ctrl_reg.sda_force_out = 1;
-    ctrl_reg.scl_force_out = 1;
-    hw->ctr.val = ctrl_reg.val;
-    hw->fifo_conf.fifo_addr_cfg_en = 0;
+    hw->ctr.sda_force_out = enable_od;
+    hw->ctr.scl_force_out = enable_od;
+}
+
+/**
+ * @brief Enable or disable arbitration for I2C communication.
+ *
+ * @param hw Pointer to the I2C hardware instance.
+ * @param enable_arbi Boolean flag to enable (true) or disable (false) arbitration.
+ */
+static inline void i2c_ll_enable_arbitration(i2c_dev_t *hw, bool enable_arbi)
+{
+    ;// ESP32 do not support
 }
 
 /**
@@ -850,6 +866,8 @@ static inline uint32_t i2c_ll_calculate_timeout_us_to_reg_val(uint32_t src_clk_h
 #define I2C_LL_SLAVE_RX_INT           (I2C_RXFIFO_FULL_INT_ENA_M | I2C_TRANS_COMPLETE_INT_ENA_M)
 // I2C max timeout value
 #define I2C_LL_MAX_TIMEOUT I2C_TIME_OUT_REG_V
+// I2C max timeout period in clock cycles
+#define I2C_LL_MAX_TIMEOUT_PERIOD    (I2C_LL_MAX_TIMEOUT)
 
 #define I2C_LL_INTR_MASK          (0xffff) /*!< I2C all interrupt bitmap */
 
